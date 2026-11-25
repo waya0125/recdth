@@ -98,6 +98,7 @@ recdth --status [--device 名前]
 | `--device 名前` | 設定ファイルの論理デバイス名（`h70` など）、`dth serve` のソケットパス、またはシリアル／ユニット名。省略時は `default_device` |
 | `--mode auto\|device\|raw` | 既定 `auto`。下の「モードの決め方」を参照 |
 | `--sid SID\|hd\|all` | device モード: 数値は `--program SID`、`hd` と省略は `--program first`、`all` は警告して `first`（`sid_all = "error"` ならエラー）。raw モード: 受け取るだけ（将来の TS フィルター用。今は全番組を出力） |
+| `--tsid HEX` | BS/CS の TSID を 16 進で明示（例: `4971` / `0x4971`）。BS は省略時にも既知の表（`dvbv5_channels_isdbs.conf` 準拠）から `--tsid` を自動付与する |
 | `--b25` | raw モード: 設定の `b25_cmd` に通して復号する。device モード: 復号済みなので何もしない（`-v` で表示） |
 | `--lnb 0\|11\|15` | BS/CS のアンテナ電源（dth の `0` / `110` / `150`）。`direct` 接続のときだけ効く |
 | `--config パス` | 設定ファイル。既定は `$RECDTH_CONFIG` → `~/.config/recdth/config.toml` → `/etc/recdth/config.toml` |
