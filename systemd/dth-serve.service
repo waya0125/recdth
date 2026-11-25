@@ -1,0 +1,69 @@
+# dth serve を常駐させる systemd ユニットの雛形（DT-H70/U2 用）
+#
+# 置き場所: /etc/systemd/system/dth-serve.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now dth-serve.service
+#
+# 前提:
+#   - dth の実行ファイルを /usr/local/bin/dth に置く
+#   - 専用ユーザーとグループを作る:
+#       sudo useradd --system --user-group --no-create-home --shell /usr/sbin/nologin dth
+#   - USB 機器を開けるよう udev ルール（udev/60-buffalo-dth.rules）を入れ、dth ユーザーを plugdev に入れる
+#   - CoBDACom.dll を /var/lib/dth/CoBDACom.dll に置く（DTH10 系の device モードに必須。Linux でも必要）
+#
+# ソケットの権限:
+#   dth serve は Linux ではソケットを権限 0660 で作る。ソケットのグループは dth serve を動かすユーザーのグループ
+#   （ソケットのディレクトリに setgid ビットがあれば、そのディレクトリのグループ）になる。
+#   このユニットでは Group=dth なので、ソケットは dth グループになる。
+#   Mirakurun / mirakc / recdth を別ユーザーで動かすときは、そのユーザーを dth グループに入れる:
+#       sudo usermod -aG dth mirakurun
+#   Docker の Mirakurun から使う場合は、/run/dth をコンテナにマウントし、
+#   コンテナ内のプロセスが dth グループの GID で動くようにする（group_add など）。
+#
+# 注意:
+#   - --serial を書かないと、dth serve は見つかった対応機器をすべて掴む。
+#     DT-H45/U2 を direct（dth tune）で別に使うなら、ここで DT-H70/U2 のシリアルだけを指定すること。
+#     シリアルは `dth list` で確認する（DTH30 系はユニット名）。
+#   - DT-H70/U2 で raw モードを一度使うと、電源を入れ直すまで BS/CS が受信できなくなる。
+#     recdth 側は mode_policy = "device_only" にしておく。
+
+[Unit]
+Description=dth serve (BUFFALO DTH10/DTH30 series tuner daemon)
+After=local-fs.target
+# 録画サーバーより先に起動させる場合は、録画サーバー側のユニットに After=dth-serve.service を書く
+
+[Service]
+Type=simple
+User=dth
+Group=dth
+SupplementaryGroups=plugdev
+
+# /run/dth を作る。グループ（dth）に x が無いとソケットにたどり着けないので 0750 以上にする
+RuntimeDirectory=dth
+RuntimeDirectoryMode=0750
+# /var/lib/dth（CEPM ハンドシェイクのキャッシュ DTH10_<serial>.cepm と CoBDACom.dll の置き場）
+StateDirectory=dth
+StateDirectoryMode=0750
+Environment=DTH_STATE_DIR=/var/lib/dth
+
+ExecStart=/usr/local/bin/dth serve \
+    --socket /run/dth/dth.sock \
+    --serial XXXXXXXXXXXX \
+    --app-keys /var/lib/dth/CoBDACom.dll
+# BS/CS のアンテナ電源を出す機種では --lnb 110 / 150 を足す（DT-H70/U2 はアンテナ電源を出せない）
+# ログを詳しくするときは ExecStart の dth の直後に -v を足す（journalctl -u dth-serve で見る）
+
+Restart=on-failure
+RestartSec=5
+# dth は SIGTERM で配信を止めてから終わる
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# 最低限のサンドボックス（USB の usbfs を開くので PrivateDevices は使えない）
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

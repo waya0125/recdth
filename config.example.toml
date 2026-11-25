@@ -1,0 +1,73 @@
+# recdth の設定例（DT-H70/U2 と DT-H45/U2 の 2 台構成）
+#
+# 置き場所（上から順に探します）:
+#   $RECDTH_CONFIG
+#   ~/.config/recdth/config.toml（$XDG_CONFIG_HOME があればその下）
+#   /etc/recdth/config.toml
+# --config で明示した場合はそのファイルだけを読みます。
+# 未知のキーは書き間違いとしてエラーになります。
+
+# dth の実行ファイル（PATH にあれば "dth" のままでよい）
+dth_bin = "/usr/local/bin/dth"
+
+# raw モード + --b25 のときに通す外部 B25 復号コマンド。
+# 標準入力から TS を読み、復号した TS を標準出力に書くコマンドを、コマンドと引数の配列で書きます。
+# 例は libaribb25 の arib-b25-stream-test（pcscd と B-CAS カードリーダーが必要）。
+b25_cmd = ["/usr/local/bin/arib-b25-stream-test"]
+
+# --device を省略したときに使う論理デバイス名
+default_device = "h70"
+
+# device モード（1 選局 1 番組だけ復号）で --sid all を受けたとき:
+#   "fallback" = stderr に警告して最初の番組（--program first）にする
+#   "error"    = エラーにして録画しない
+sid_all = "fallback"
+
+# 終了時に子プロセス（dth・外部 B25）へ SIGTERM を送ってから SIGKILL するまでの秒数
+stop_grace = 5
+
+# 起動から最初の TS が届くまでの上限秒数（0 で無効）。チューナーの固まりを検出します。
+first_byte_timeout = 30
+
+# ---------------------------------------------------------------------------
+# DT-H70/U2（DTH10 系・地デジ + BS/CS）
+#   dth serve を常駐させ、recdth は dth stream で TS を受け取ります。
+#   1 台で地デジと BS/CS を同時に配れます（Mirakurun では GR と BS/CS の 2 エントリにする）。
+#   raw モードを一度使うと電源再投入まで BS/CS が受信できなくなるため device_only に固定します。
+[devices.h70]
+model = "DT-H70/U2"
+family = "dth10"
+satellite = true
+connection = "serve"
+mode_policy = "device_only"
+socket = "/run/dth/dth.sock"
+# dth list で表示される USB シリアル番号。dth serve が複数台を配るときは必須。
+serial = "XXXXXXXXXXXX"
+# CoBDACom.dll は dth serve 側（systemd ユニットの --app-keys）で指定します。
+# connection = "direct" に切り替えたときだけ、ここの app_keys が dth tune に渡されます。
+app_keys = "/var/lib/dth/CoBDACom.dll"
+# 他のクライアントが使用中のチャンネルを奪わない（false = dth stream --if-free を付ける）
+takeover = false
+
+# ---------------------------------------------------------------------------
+# DT-H45/U2（DTH30 系・地デジ専用。dth では DT-H30/U2 として扱われる）
+#   raw モードで放送波そのままの TS を取り、--b25 で外部 B25 復号に通す構成です。
+#   raw なら 1 チャンネルの全番組を取れるので、Mirakurun で同じチャンネルの別番組を同時に使えます。
+[devices.h45]
+model = "DT-H45/U2"
+family = "dth30"
+satellite = false
+connection = "direct"
+mode_policy = "raw_preferred"
+# DTH30 系は USB シリアル番号を持たないため、dth list のユニット名を書きます。
+# 末尾は USB ポートの位置なので、差し替えると変わります。
+serial = "DTH30-0128-3-1"
+# 純正ファームウェアを使う場合だけ BufFsUSB.sys を指定（無ければ dth 内蔵の互換ファームウェア）
+# firmware = "/var/lib/dth/BufFsUSB.sys"
+
+# 内蔵 B-CAS で復号する（device モード、1 選局 1 番組）運用にする場合:
+#   mode_policy = "device_only"
+#
+# dth serve 経由にする場合（同じ dth serve に H70 と一緒に配らせる例）:
+#   connection = "serve"
+#   socket = "/run/dth/dth.sock"
