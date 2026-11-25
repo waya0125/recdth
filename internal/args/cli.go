@@ -27,6 +27,7 @@ type Options struct {
 	Device  string
 	Mode    string // auto / device / raw
 	SID     string
+	TSID    uint16 // 明示された TSID（0 = 未指定）
 	B25     bool
 	LNB     *int // 指定されたときだけ（dth の表記 0/110/150 に変換済み）
 	Config  string
@@ -51,6 +52,38 @@ func (c countFlag) String() string {
 }
 func (c countFlag) Set(string) error { *c.n++; return nil }
 func (c countFlag) IsBoolFlag() bool { return true }
+
+// tsidFlag は --tsid <HEX>（例: 4971 / 0x4971）を受ける。
+type tsidFlag struct{ v *uint16 }
+
+func (t tsidFlag) String() string {
+	if t.v == nil || *t.v == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%04x", *t.v)
+}
+func (t tsidFlag) Set(s string) error {
+	v, err := ParseTSID(s)
+	if err != nil {
+		return err
+	}
+	*t.v = v
+	return nil
+}
+
+// ParseTSID は 16 進の TSID（例: "4971" / "0x4971"、1〜0xffff）を解釈する。
+func ParseTSID(s string) (uint16, error) {
+	in := strings.TrimSpace(s)
+	digits := strings.TrimPrefix(strings.TrimPrefix(in, "0x"), "0X")
+	if digits == "" {
+		return 0, fmt.Errorf("--tsid の値 %q を解釈できません（例: 4971 / 0x4971）", s)
+	}
+	v, err := strconv.ParseUint(digits, 16, 16)
+	if err != nil || v == 0 {
+		return 0, fmt.Errorf("--tsid の値 %q を解釈できません（例: 4971 / 0x4971）", s)
+	}
+	return uint16(v), nil
+}
 
 // lnbFlag は --lnb 0|11|15 を受ける（dth 表記の 110/150 も許可）。
 type lnbFlag struct{ v **int }
@@ -95,6 +128,7 @@ func ParseCLI(argv []string, stderr io.Writer) (*Options, error) {
 	fs.StringVar(&o.Device, "device", "", "設定ファイルの論理デバイス名（h70 など）、dth serve のソケットパス、またはシリアル／ユニット名")
 	fs.StringVar(&o.Mode, "mode", "auto", "auto / device / raw（auto は設定のモード方針とオプションから決める）")
 	fs.StringVar(&o.SID, "sid", "", "device モード: SID（--program に変換）/ hd（= first）/ all（1 番組制限のため first に戻すかエラー）。raw モード: 将来の TS フィルター用")
+	fs.Var(tsidFlag{&o.TSID}, "tsid", "BS/CS の TSID を 16 進で明示（例: 4971 / 0x4971）。BS は省略時にも既知の表から自動付与する")
 	fs.BoolVar(&o.B25, "b25", false, "raw モード: 外部 B25 復号コマンドに通す。device モード: 内蔵 B-CAS で復号済みなので何もしない")
 	fs.Var(lnbFlag{&o.LNB}, "lnb", "BS/CS のアンテナ電源 0 / 11 / 15（dth の 0 / 110 / 150）。direct 接続のときだけ効く")
 	fs.StringVar(&o.Config, "config", "", "設定ファイル（既定: ~/.config/recdth/config.toml → /etc/recdth/config.toml）")

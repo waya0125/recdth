@@ -27,6 +27,45 @@ type Channel struct {
 	Type Type
 	// Name は dth の -c にそのまま渡す名前。
 	Name string
+	// TSID は BS チャンネルに対応する既知の TSID（0 なら未定義）。
+	TSID uint16
+}
+
+// bsTSIDMap は BS の既知の TSID（recisdb 1.3.2 同梱 dvbv5_channels_isdbs.conf の値、2026-11 時点）。
+// dth はロック直後に TMCC の TSID 表が全部 0 で返ることがあり、そのときの計算値
+// (0x4000 | tp<<4 | slot) が再編後の TSID と食い違うため、--tsid で明示して防ぐ。
+var bsTSIDMap = map[string]uint16{
+	"BS01_0": 0x4010, // BS朝日
+	"BS01_1": 0x4011, // BS-TBS
+	"BS01_2": 0x4012, // BSテレ東
+	"BS03_0": 0x4030, // WOWOWプライム
+	"BS03_1": 0x4631,
+	"BS03_2": 0x4632,
+	"BS05_0": 0x4450, // WOWOWライブ
+	"BS05_1": 0x4451, // WOWOWシネマ
+	"BS07_0": 0x4470, // スターチャンネル
+	"BS09_0": 0x4090, // BS11
+	"BS09_1": 0x4092, // BS12 トゥエルビ
+	"BS11_0": 0x46b0,
+	"BS11_1": 0x46b1,
+	"BS11_2": 0x46b2,
+	"BS13_0": 0x40d0, // BS日テレ
+	"BS13_1": 0x40d1, // BSフジ
+	"BS13_2": 0x46d2, // 放送大学
+	"BS15_0": 0x40f1, // NHK BS
+	"BS15_1": 0x40f2,
+	"BS15_2": 0x48f3, // BS10
+	"BS17_0": 0x4310,
+	"BS19_0": 0x4730, // J SPORTS
+	"BS19_1": 0x4731,
+	"BS19_2": 0x4732,
+	"BS19_3": 0x4733,
+	"BS21_0": 0x4750,
+	"BS21_1": 0x4751,
+	"BS21_2": 0x4752,
+	"BS23_0": 0x4770,
+	"BS23_1": 0x4971, // BSよしもと
+	"BS23_2": 0x4973, // BS松竹東急 / J:COM BS 等
 }
 
 // Satellite は BS/CS（ISDB-S）なら true。
@@ -50,7 +89,8 @@ func Parse(s string) (Channel, error) {
 		if err != nil || tp < 1 || tp > 23 || tp%2 == 0 || slot > maxSlot {
 			return Channel{}, fmt.Errorf("BS のチャンネル %q を解釈できません（BS01_0〜BS23_%d、トランスポンダーは奇数）", in, maxSlot)
 		}
-		return Channel{Type: BS, Name: fmt.Sprintf("BS%02d_%d", tp, slot)}, nil
+		name := fmt.Sprintf("BS%02d_%d", tp, slot)
+		return Channel{Type: BS, Name: name, TSID: bsTSIDMap[name]}, nil
 	case strings.HasPrefix(u, "CS"), strings.HasPrefix(u, "ND"):
 		tp, slot, err := splitTpSlot(u[2:])
 		if err != nil || tp < 2 || tp > 24 || tp%2 != 0 || slot > maxSlot {

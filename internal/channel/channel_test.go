@@ -57,3 +57,28 @@ func TestSatellite(t *testing.T) {
 		}
 	}
 }
+
+func TestBSTSID(t *testing.T) {
+	cases := map[string]uint16{
+		"BS01_0": 0x4010,
+		"BS09_1": 0x4092,
+		"BS13_2": 0x46d2,
+		"BS15_0": 0x40f1,
+		"BS15_2": 0x48f3,
+		"BS23_0": 0x4770,
+		"BS23_1": 0x4971,
+		"BS23_2": 0x4973,
+		"BS23_3": 0, // 表に無いスロット
+		"CS2":    0,
+		"27":     0,
+	}
+	for in, want := range cases {
+		c, err := Parse(in)
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", in, err)
+		}
+		if c.TSID != want {
+			t.Errorf("Parse(%q).TSID = 0x%04x, want 0x%04x", in, c.TSID, want)
+		}
+	}
+}

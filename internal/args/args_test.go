@@ -132,7 +132,7 @@ func TestBuildServeDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/usr/local/bin/dth", "stream", "--socket", "/run/dth/dth.sock", "-c", "BS15_0", "--mode", "device", "--program", "101", "--serial", "H70SERIAL", "--if-free"}
+	want := []string{"/usr/local/bin/dth", "stream", "--socket", "/run/dth/dth.sock", "-c", "BS15_0", "--tsid", "40f1", "--mode", "device", "--program", "101", "--serial", "H70SERIAL", "--if-free"}
 	if !reflect.DeepEqual(p.Stages, [][]string{want}) {
 		t.Errorf("stages = %q\nwant     %q", p.Stages, want)
 	}
@@ -157,7 +157,7 @@ func TestBuildDirectDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/usr/local/bin/dth", "-v", "tune", "-c", "BS01_0", "--mode", "device", "--program", "first", "-t", "30", "--serial", "H70SERIAL", "--app-keys", "/var/lib/dth/CoBDACom.dll", "--lnb", "150"}
+	want := []string{"/usr/local/bin/dth", "-v", "tune", "-c", "BS01_0", "--tsid", "4010", "--mode", "device", "--program", "first", "-t", "30", "--serial", "H70SERIAL", "--app-keys", "/var/lib/dth/CoBDACom.dll", "--lnb", "150"}
 	if !reflect.DeepEqual(p.Stages[0], want) {
 		t.Errorf("argv = %q\nwant   %q", p.Stages[0], want)
 	}
@@ -343,6 +343,37 @@ func TestChannelTypeForMirakurun(t *testing.T) {
 		c, err := channel.Parse(in)
 		if err != nil || c.Name != want {
 			t.Errorf("%s → %+v %v", in, c, err)
+		}
+	}
+}
+
+func TestBSTSIDAndExplicitFlag(t *testing.T) {
+	// BS23_1 / BS23_2 に既知の TSID が自動で付く
+	p, err := plan(t, "--device", "h70", "BS23_1", "10", "-")
+	if err != nil || p.TSID != 0x4971 || !contains(p.Stages[0], "4971") {
+		t.Errorf("BS23_1: %+v %v", p, err)
+	}
+	p, err = plan(t, "--device", "h70", "BS23_2", "10", "-")
+	if err != nil || p.TSID != 0x4973 || !contains(p.Stages[0], "4973") {
+		t.Errorf("BS23_2: %+v %v", p, err)
+	}
+	// --tsid で明示上書きできる（0x 付き・無し両方）
+	p, err = plan(t, "--device", "h70", "--tsid", "0x4971", "BS23_0", "10", "-")
+	if err != nil || p.TSID != 0x4971 || !contains(p.Stages[0], "4971") {
+		t.Errorf("--tsid 0x4971: %+v %v", p, err)
+	}
+	p, err = plan(t, "--device", "h70", "--tsid", "46d2", "CS2", "10", "-")
+	if err != nil || p.TSID != 0x46d2 || !contains(p.Stages[0], "46d2") {
+		t.Errorf("CS --tsid 46d2: %+v %v", p, err)
+	}
+	// 地デジに --tsid はエラー
+	if _, err := plan(t, "--device", "h70", "--tsid", "40f1", "27", "10", "-"); err == nil {
+		t.Error("地デジに --tsid はエラーになるべき")
+	}
+	// 不正な --tsid 値
+	for _, bad := range []string{"0", "0x0", "xyz", "10000"} {
+		if _, err := ParseTSID(bad); err == nil {
+			t.Errorf("ParseTSID(%q) はエラーになるべき", bad)
 		}
 	}
 }

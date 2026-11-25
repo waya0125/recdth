@@ -31,6 +31,8 @@ type Plan struct {
 	Device  *config.Device
 	Channel channel.Channel
 	Mode    Mode
+	// TSID は dth の --tsid に渡す値（0 なら渡さない）。
+	TSID uint16
 	// Program は device モードで dth --program に渡す値（first または SID）。
 	Program string
 	// RawSIDs は raw モードで受けた --sid の値。将来の TS フィルター（PID 抽出）連携用のフックで、現状は使わない。
@@ -170,7 +172,14 @@ func Build(o *Options, cfg *config.Config, d *config.Device) (*Plan, error) {
 	if d.Family == config.FamilyDTH30 && ch.Satellite() {
 		return nil, fmt.Errorf("デバイス %s（DTH30 系）は地デジ専用です", d.Name)
 	}
-	p := &Plan{Device: d, Channel: ch}
+	if o.TSID != 0 && !ch.Satellite() {
+		return nil, fmt.Errorf("地デジ（%s）には --tsid を指定できません", ch.Name)
+	}
+	tsid := ch.TSID
+	if o.TSID != 0 {
+		tsid = o.TSID
+	}
+	p := &Plan{Device: d, Channel: ch, TSID: tsid}
 	mode, warn, err := ResolveMode(o, d, ch)
 	if err != nil {
 		return nil, err
@@ -188,7 +197,7 @@ func Build(o *Options, cfg *config.Config, d *config.Device) (*Plan, error) {
 		p.Notes = append(p.Notes, fmt.Sprintf("raw モードの --sid %s は受け取りましたが、TS フィルターは未実装のため全番組の TS を出力します", strings.Join(raw, ",")))
 	}
 
-	dth, notes, warn := dthArgv(o, cfg, d, ch, mode, prog)
+	dth, notes, warn := dthArgv(o, cfg, d, ch, mode, prog, tsid)
 	p.Stages = [][]string{dth}
 	p.Notes = append(p.Notes, notes...)
 	p.Warnings = append(p.Warnings, warn...)
@@ -218,7 +227,7 @@ func Build(o *Options, cfg *config.Config, d *config.Device) (*Plan, error) {
 }
 
 // dthArgv は dth のコマンドラインを組み立てる。
-func dthArgv(o *Options, cfg *config.Config, d *config.Device, ch channel.Channel, mode Mode, prog string) (argv, notes, warn []string) {
+func dthArgv(o *Options, cfg *config.Config, d *config.Device, ch channel.Channel, mode Mode, prog string, tsid uint16) (argv, notes, warn []string) {
 	argv = []string{cfg.DthBinFor(d)}
 	for i := 1; i < o.Verbose; i++ {
 		argv = append(argv, "-v")
@@ -228,7 +237,11 @@ func dthArgv(o *Options, cfg *config.Config, d *config.Device, ch channel.Channe
 		lnb = *o.LNB
 	}
 	if d.Connection == config.ConnServe {
-		argv = append(argv, "stream", "--socket", d.Socket, "-c", ch.Name, "--mode", string(mode))
+		argv = append(argv, "stream", "--socket", d.Socket, "-c", ch.Name)
+		if tsid != 0 {
+			argv = append(argv, "--tsid", fmt.Sprintf("%04x", tsid))
+		}
+		argv = append(argv, "--mode", string(mode))
 		if mode == ModeDevice {
 			argv = append(argv, "--program", prog)
 		}
@@ -247,7 +260,11 @@ func dthArgv(o *Options, cfg *config.Config, d *config.Device, ch channel.Channe
 		}
 		return argv, notes, warn
 	}
-	argv = append(argv, "tune", "-c", ch.Name, "--mode", string(mode))
+	argv = append(argv, "tune", "-c", ch.Name)
+	if tsid != 0 {
+		argv = append(argv, "--tsid", fmt.Sprintf("%04x", tsid))
+	}
+	argv = append(argv, "--mode", string(mode))
 	if mode == ModeDevice {
 		argv = append(argv, "--program", prog)
 	}
