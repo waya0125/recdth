@@ -1,0 +1,10 @@
+# BUFFALO DTH10/DTH30 series（VID 0411）を plugdev グループから開けるようにする
+#   sudo cp udev/60-buffalo-dth.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=0411
+#
+# DT-H70/U2（DTH10 系）
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="0411", ATTR{idProduct}=="0199", MODE="0660", GROUP="plugdev"
+# DT-H45/U2・DT-H30/U2（DTH30 系。DT-H45/U2 は DT-H30/U2 と同じ PID）
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="0411", ATTR{idProduct}=="0128", MODE="0660", GROUP="plugdev"
+# ほかの機種の PID は DTH10-series-driver の README の対象機種の表を参照
