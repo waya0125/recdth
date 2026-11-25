@@ -15,7 +15,7 @@ import (
 const Usage = `使い方: recdth [オプション] <チャンネル> <秒数|-> <出力先|->
        recdth --list | --status [--device 名前]
 
-  <チャンネル>  地デジ 13〜62 / BS15_0, BS1_0 / CS2〜CS24, ND02〜ND24
+  <チャンネル>  地デジ 13〜62 / BS15_0, BS1_0 / CS2〜CS24, ND02〜ND24（"BS15_0:101" のように :SID も可）
   <秒数>        録画秒数。- または 0 で SIGINT / SIGTERM まで継続
   <出力先>      出力ファイル。- で標準出力（標準出力には TS 以外を書きません）
 

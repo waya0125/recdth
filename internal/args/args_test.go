@@ -355,3 +355,24 @@ func contains(s []string, v string) bool {
 	}
 	return false
 }
+
+func TestChannelWithSID(t *testing.T) {
+	p, err := plan(t, "--device", "h70", "BS15_0:101", "-", "-")
+	if err != nil || p.Program != "101" || p.Channel.Name != "BS15_0" || !contains(p.Stages[0], "101") {
+		t.Errorf("BS15_0:101: %+v %v", p, err)
+	}
+	p, err = plan(t, "--device", "h70", "--sid", "1024", "27:1024", "-", "-")
+	if err != nil || p.Program != "1024" {
+		t.Errorf("同じ値の --sid は可: %+v %v", p, err)
+	}
+	p, err = plan(t, "--device", "h45", "27:1024", "-", "-")
+	if err != nil || p.Mode != ModeRaw || !reflect.DeepEqual(p.RawSIDs, []string{"1024"}) {
+		t.Errorf("raw では TS フィルター用に保持: %+v %v", p, err)
+	}
+	if _, err := plan(t, "--device", "h70", "--sid", "1025", "27:1024", "-", "-"); err == nil {
+		t.Error("--sid と食い違う SID はエラー")
+	}
+	if _, err := plan(t, "--device", "h70", "27:", "-", "-"); err == nil {
+		t.Error("空の SID はエラー")
+	}
+}

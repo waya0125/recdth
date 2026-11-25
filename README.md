@@ -51,7 +51,9 @@ BUFFALO の DTH10 / DTH30 シリーズ（DT-H70/U2、DT-H45/U2 など）の USB 
 ### Mirakurun / mirakc で使うときの注意
 
 - device モードの出力には 1 番組しか入らないため、録画サーバーが「同じチャンネルの別番組」を同じチューナーのストリームで流用すると、その番組は映りません。全番組が必要なら DT-H45/U2 のように raw モード + `--b25` にしてください。
-- device モードの出力に EPG 取得に必要な EIT がどこまで入るかは未確認です（実機で確認予定）。
+- device モードの出力に入る EIT（EPG）は機種によって違います。
+  - DT-H45/U2（DTH30 系、dth の互換ファームウェア `dth30-fw`）: ヌルパケット以外の全 PID を流し、指定した番組の ES だけを復号して差し込む作りなので、EIT・SDT・NIT・TOT も入ります（`crates/dth30-fw/src/program.rs`）。
+  - DT-H70/U2（DTH10 系）: ソースには「PSI と指定番組の PID」とあるだけで、EIT（特に PID `0x0012`）がどこまで通るかは機器側のファームウェア次第です。実機で数秒録って PID `0x0012` の有無を確認する予定です。
 
 ## ビルド
 
@@ -87,7 +89,7 @@ recdth --status [--device 名前]
 
 | 引数 | 説明 |
 |---|---|
-| `チャンネル` | 地デジ `13`〜`62`、BS `BS15_0` / `BS1_0`（`BS01_0` に正規化）、CS `CS2`〜`CS24`（`ND02`〜`ND24` に変換。`ND02` の直接指定も可） |
+| `チャンネル` | 地デジ `13`〜`62`、BS `BS15_0` / `BS1_0`（`BS01_0` に正規化）、CS `CS2`〜`CS24`（`ND02`〜`ND24` に変換。`ND02` の直接指定も可）。`BS15_0:101` / `27:1024` のように `:SID` を付けると `--sid` と同じ意味（mirakc 向け） |
 | `秒数` | 録画秒数。`-` または `0` で SIGINT / SIGTERM を受けるまで継続 |
 | `出力先` | 出力ファイル。`-` で標準出力 |
 
@@ -220,6 +222,19 @@ tuners:
   - name: DT-H45-GR
     types: [GR]
     command: /usr/local/bin/recdth --device h45 --b25 {{{channel}}} - -
+```
+
+mirakc の `tuners[].command` には `{{{sid}}}` がありません（`{{{sid}}}` が使えるのは `filters` 側だけです）。  
+DT-H70/U2 の device モードで番組を指定したいときは、`channels[].channel` に `チャンネル:SID` の形で書くと、recdth が `:` の後ろを `--program` に渡します。
+
+```yaml
+channels:
+  - name: BS1
+    type: BS
+    channel: 'BS15_0:101'
+  - name: NHK総合
+    type: GR
+    channel: '27:1024'
 ```
 
 ### Docker で動かす録画サーバーから使う場合

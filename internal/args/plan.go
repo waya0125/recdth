@@ -154,9 +154,18 @@ func parseSID(s string) (int, error) {
 
 // Build はコマンドラインと設定から実行内容を組み立てる。
 func Build(o *Options, cfg *config.Config, d *config.Device) (*Plan, error) {
-	ch, err := channel.Parse(o.Channel)
+	chName, sid, err := SplitChannelSID(o.Channel, o.SID)
 	if err != nil {
 		return nil, err
+	}
+	ch, err := channel.Parse(chName)
+	if err != nil {
+		return nil, err
+	}
+	if sid != o.SID {
+		oo := *o
+		oo.SID = sid
+		o = &oo
 	}
 	if d.Family == config.FamilyDTH30 && ch.Satellite() {
 		return nil, fmt.Errorf("デバイス %s（DTH30 系）は地デジ専用です", d.Name)
@@ -263,4 +272,22 @@ func dthArgv(o *Options, cfg *config.Config, d *config.Device, ch channel.Channe
 		argv = append(argv, "--lnb", strconv.Itoa(lnb))
 	}
 	return argv, notes, warn
+}
+
+// SplitChannelSID は "チャンネル:SID" 形式（例: "BS15_0:101"、"27:1024"）を分ける。
+// mirakc の tuners[].command には {{{sid}}} が無いため、channels[].channel に SID を書けるようにするためのもの。
+// --sid も指定されていて値が食い違う場合はエラーにする。
+func SplitChannelSID(arg, sidOpt string) (ch, sid string, err error) {
+	ch, s, found := strings.Cut(arg, ":")
+	if !found {
+		return arg, sidOpt, nil
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", "", fmt.Errorf("チャンネル %q の : の後ろに SID がありません", arg)
+	}
+	if sidOpt != "" && !strings.EqualFold(strings.TrimSpace(sidOpt), s) {
+		return "", "", fmt.Errorf("チャンネル %q の SID と --sid %q が食い違っています", arg, sidOpt)
+	}
+	return ch, s, nil
 }
